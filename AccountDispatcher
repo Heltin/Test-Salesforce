@@ -1,0 +1,74 @@
+public with sharing class AccountDispatcher extends EventDispatcherBase {
+
+    private AccountRepository repository;
+
+    public AccountDispatcher() {
+        super(
+            new List<EventMapper>(),
+            Account.SObjectType,
+            List<Account>.class,
+            List<AccountEvents__e>.class
+        );
+        this.repository = new AccountRepository();
+    }
+
+    public override List<SObject> retrieveRecords(Set<Id> recordIds) {
+
+        return
+            repository.getAccountsWithContactsContractsByProfile(
+                recordIds,
+                new Set<String>{
+                    'Main', 'Billing'
+                },
+                new Set<String>{
+                    'name', 'phone', 'creci__c', 'document__c', 'shippingCountry', 'createdDate', 'logoUrl__c',
+                    'shippingState', 'shippingCity', 'shippingNeighbourhood__c', 'shippingStreet', 'website',
+                    'id', 'shippingStreetNumber__c', 'shippingPostalCode', 'companyName__c', 'clientType__c',
+                    'billingCountry', 'billingState', 'billingCity', 'billingNeighbourhood__c', 'billingStreet',
+                    'billingStreetNumber__c', 'billingPostalCode', 'clientCode__c', 'advertiserId__c', 'vivarealId__c',
+                    'MobilePhone__c', 'phoneLead__c' , 'lastModifiedDate', 'newInvoice__c', 'ComplementaryShippingAddressInfo__c',
+                    'ComplementaryBillingAddressInfo__c', 'mediaZone__r.Name', 'Clustering__c', 'showAddress__c', 'Parent.advertiserId__c',
+                    'TypeOfEstablishment__c', 'ParentId'
+
+                },
+                new Set<String>{
+                    'email', 'contactRole__c', 'profile__c'
+                }
+            );
+
+    }    
+
+    public override List<SObject> filterRecords(List<SObject> records) {
+
+        List<Account> accounts = (List<Account>) records;
+
+        return (List<Account>)
+                Filter.records(accounts)
+                        .filter(new AccountDispatcherFilter.DoesAccountHaveAnAdvetiserId())
+                        .filter(new AccountDispatcherFilter.DoesAccountHaveAnLegacyId())
+                        .filter(new AccountDispatcherFilter.DoesAccountHaveAnEmail())
+                        .filter(new AccountDispatcherFilter.DoesAccountHaveBillingAddress())
+                        .execute();
+
+    }
+
+    public override SObject mapToEvent(SObject record, String action) {
+        if (mappers.isEmpty()) {
+            throw new ListException('No mapper defined ;(');
+        }
+
+        Account account = (Account) record;
+
+        AccountEvents__e accountEvent = new AccountEvents__e();
+
+        for (EventMapper mapper: mappers) {
+            accountEvent.put(mapper.getEventField(), JSON.serialize(mapper.mapEvent(account), true));
+        }
+
+        accountEvent.action__c = action;
+        accountEvent.recordId__c = record.Id;
+
+        return accountEvent;
+    }
+
+}
